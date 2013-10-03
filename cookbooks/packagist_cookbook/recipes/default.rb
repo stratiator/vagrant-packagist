@@ -84,61 +84,44 @@ bash "install phpiredis" do
   EOC
 end
 
-directory "/home/vagrant/work/" do
-  owner "vagrant"
-  group "vagrant"
-  action :create
-end
-
-if !File.exists?("/home/vagrant/work/packagist")
-  git "/home/vagrant/work/packagist" do
-    user "vagrant"
-    group "vagrant"
-    repository "https://github.com/kawahara/packagist"
-    reference "eab999edbec1fa15480f5f8f5403a7f1959ed400"
-    action :checkout
-  end
-end
-
 bash "resolve dependencies of packagist" do
   user "vagrant"
-  group "vagrant"
-  not_if { File.exists?("/home/vagrant/work/packagist/vendor") }
+  group "www-data"
+  not_if { File.exists?("/www/ustream.tv/packagist/packagist/vendor") }
   code <<-EOC
-    cd /home/vagrant/work/packagist
+    cd /www/ustream.tv/packagist/packagist
     composer install
   EOC
 end
 
-if !File.exists?("/home/vagrant/work/packagist/app/config/parameters.yml")
-  template "/home/vagrant/work/packagist/app/config/parameters.yml" do
+if !File.exists?("/www/ustream.tv/packagist/packagist/app/config/parameters.yml")
+  template "/www/ustream.tv/packagist/packagist/app/config/parameters.yml" do
     user "vagrant"
-    group "vagrant"
+    group "www-data"
     mode 0644
     source "parameters.yml.erb"
   end
 end
 
-bash "setup Symfony project - 1" do
-  code <<-EOC
-  cd /home/vagrant/work/packagist
-  setfacl -R -m u:www-data:rwX -m u:`whoami`:rwX app/cache app/logs
-  setfacl -dR -m u:www-data:rwx -m u:`whoami`:rwx app/cache app/logs
-EOC
-end
+#bash "setup Symfony project - 2" do
+#  user "vagrant"
+#  group "www-data"
+#  code <<-EOC
+#  cd /www/ustream.tv/packagist/packagist
+#  php app/console assets:install --symlink web
+#  mysqlshow -u root packagist
+#  if [ $? -ne 0 ]; then
+#    php app/console doctrine:database:create
+#    php app/console doctrine:schema:create
+#  fi
+#EOC
+#end
 
-bash "setup Symfony project - 2" do
-  user "vagrant"
-  group "vagrant"
-  code <<-EOC
-  cd /home/vagrant/work/packagist
-  ./app/console assets:install --symlink web
-  mysqlshow -u root packagist
-  if [ $? -ne 0 ]; then
-    ./app/console doctrine:database:create
-    ./app/console doctrine:schema:create
-  fi
-EOC
+template "/etc/php5/fpm/conf.d/custom.ini" do
+	user "vagrant"
+	group "www-data"
+	mode 0644
+	source "custom_php.ini.erb"
 end
 
 %w{
@@ -151,4 +134,21 @@ end
   service service_name do
     action [:start, :restart]
   end
+end
+
+file "/etc/mysql/conf.d/bind.cnf" do
+	action :create
+	owner "root"
+	group "root"
+	mode "0644"
+	content "[mysqld]
+bind-address=0.0.0.0
+"
+	notifies :restart, "service[mysql]"
+end
+
+execute "mysql root all" do
+	command "/usr/bin/mysql -u root -e \"grant all on *.* to 'root'@'%' WITH GRANT OPTION;\""
+	# not_if
+	action :run
 end

@@ -1,25 +1,29 @@
 server {
     listen 80;
 
-    server_name packagist;
-    root /home/vagrant/work/packagist/web;
+    server_name packagist.local;
+    root /www/ustream.tv/packagist/packagist/web;
 
     rewrite ^/app\.php/?(.*)$ /$1 permanent;
 
     location / {
-        index app.php;
+        index app_dev.php;
         try_files $uri @rewriteapp;
     }
 
     location @rewriteapp {
-        rewrite ^(.*)$ /app.php/$1 last;
+        rewrite ^(.*)$ /app_dev.php/$1 last;
     }
 
     location ~ ^/(app|app_dev|config)\.php(/|$) {
-        fastcgi_pass unix:/var/run/php5-fpm.sock;
-        fastcgi_split_path_info ^(.+\.php)(/.*)$;
         include fastcgi_params;
-        fastcgi_param  SCRIPT_FILENAME $document_root$fastcgi_script_name;
-        fastcgi_param  HTTPS off;
+
+        auth_basic "TSHOOOOOO";
+
+        auth_basic_user_file /www/ustream.tv/packagist/packagist/web/.htpasswd;
+
+        fastcgi_pass 127.0.0.1:9000;
+        fastcgi_index app_dev.php;
+        fastcgi_param SCRIPT_FILENAME $document_root/app_dev.php;
     }
 }
